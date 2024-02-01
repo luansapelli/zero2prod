@@ -30,7 +30,7 @@ async fn subscription_api_should_return_status_ok_for_valid_form_data() {
     let body = "name=jhon%20doe&email=jhondoe%40email.com";
     let response = client
         .post(&format!("{}/subscribe", address))
-        .header("Content-Type", "application/x-www-form-encoded")
+        .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
         .await
@@ -55,7 +55,7 @@ async fn subscription_api_should_return_bad_request_status_when_missing_data() {
     for (body, error_message) in test_cases {
         let response = client
             .post(&format!("{}/subscribe", address))
-            .header("Content-Type", "application/x-www-form-encoded")
+            .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
             .send()
             .await
