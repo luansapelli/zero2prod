@@ -3,8 +3,8 @@ use std::net::TcpListener;
 
 #[derive(Debug, serde::Deserialize)]
 struct FormData {
-    _name: String,
-    _email: String,
+    name: String,
+    email: String,
 }
 
 async fn health_check() -> HttpResponse {
