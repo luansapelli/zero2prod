@@ -3,15 +3,15 @@ use std::net::TcpListener;
 
 #[derive(Debug, serde::Deserialize)]
 struct FormData {
-    name: String,
-    email: String,
+    _name: String,
+    _email: String,
 }
 
 async fn health_check() -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-async fn subscribe(form: web::Form<FormData>) -> HttpResponse {
+async fn subscribe(_form: web::Form<FormData>) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
