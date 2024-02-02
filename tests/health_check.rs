@@ -1,17 +1,22 @@
 use actix_web::http::StatusCode;
-use sqlx::{Connection, PgConnection};
+use sqlx::PgPool;
 use std::net::TcpListener;
 use zero2prod::{config::get_config, startup::run};
+
+pub struct TestApp {
+    pub address: String,
+    pub db_pool: PgPool,
+}
 
 #[tokio::test]
 async fn health_check_api_should_return_status_ok() {
     // Arrange
-    let address = spawn_app();
+    let app = spawn_app().await;
     let client = reqwest::Client::new();
 
     // Act
     let response = client
-        .get(format!("{}/health_check", address))
+        .get(format!("{}/health_check", &app.address))
         .send()
         .await
         .expect("Failed to execute request.");
@@ -24,18 +29,13 @@ async fn health_check_api_should_return_status_ok() {
 #[tokio::test]
 async fn subscription_api_should_return_status_ok_for_valid_form_data() {
     // Arrange
-    let address = spawn_app();
-    let config = get_config().expect("Failed to get configurations");
-    let db_connection_string = config.database.connection_string();
-    let mut db_connection = PgConnection::connect(&db_connection_string)
-        .await
-        .expect("Failed to connect to database.");
+    let app = spawn_app().await;
     let client = reqwest::Client::new();
 
     // Act
     let body = "name=jhon%20doe&email=jhondoe%40email.com";
     let response = client
-        .post(&format!("{}/subscribe", address))
+        .post(&format!("{}/subscribe", &app.address))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
@@ -44,8 +44,8 @@ async fn subscription_api_should_return_status_ok_for_valid_form_data() {
 
     assert_eq!(StatusCode::OK, response.status().as_u16());
 
-    let saved = sqlx::query!("SELECT email, name FROM subscriptions")
-        .fetch_one(&mut db_connection)
+    let saved = sqlx::query!("SELECT name, email FROM subscriptions")
+        .fetch_one(&app.db_pool)
         .await
         .expect("Failed to fetch saved subscription.");
 
@@ -56,7 +56,7 @@ async fn subscription_api_should_return_status_ok_for_valid_form_data() {
 #[tokio::test]
 async fn subscription_api_should_return_bad_request_status_when_missing_data() {
     // Arrange
-    let address = spawn_app();
+    let app = spawn_app().await;
     let client = reqwest::Client::new();
 
     let test_cases = vec![
@@ -68,7 +68,7 @@ async fn subscription_api_should_return_bad_request_status_when_missing_data() {
     // Act
     for (body, error_message) in test_cases {
         let response = client
-            .post(&format!("{}/subscribe", address))
+            .post(&format!("{}/subscribe", &app.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
             .send()
@@ -84,13 +84,19 @@ async fn subscription_api_should_return_bad_request_status_when_missing_data() {
     }
 }
 
-fn spawn_app() -> String {
+async fn spawn_app() -> TestApp {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port.");
 
     let port = listener.local_addr().unwrap().port();
+    let address = format!("http://127.0.0.1:{}", port);
 
-    let server = run(listener).expect("Failed to bind address.");
+    let config = get_config().expect("Failed to get configurations");
+    let db_pool = PgPool::connect(&config.database.connection_string())
+        .await
+        .expect("Failed to connect to database.");
+
+    let server = run(listener, db_pool.clone()).expect("Failed to bind address.");
 
     let _ = tokio::spawn(server);
-    format!("http://127.0.0.1:{}", port)
+    TestApp { address, db_pool }
 }
