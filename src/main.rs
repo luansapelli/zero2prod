@@ -1,9 +1,13 @@
 use std::net::TcpListener;
-use zero2prod::run;
+use zero2prod::{config::get_config, startup::run};
 
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
-    let listener = TcpListener::bind("127.0.0.1:8000").expect("Failed to bind address.");
+    let config = get_config().expect("Failed to get configurations");
+
+    let address = format! {"127.0.0.1:{}", config.application_port};
+
+    let listener = TcpListener::bind(address).expect("Failed to bind address.");
 
     run(listener)?.await
 }

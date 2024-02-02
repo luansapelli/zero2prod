@@ -1,6 +1,7 @@
 use actix_web::http::StatusCode;
+use sqlx::{Connection, PgConnection};
 use std::net::TcpListener;
-use zero2prod::run;
+use zero2prod::{config::get_config, startup::run};
 
 #[tokio::test]
 async fn health_check_api_should_return_status_ok() {
@@ -24,6 +25,11 @@ async fn health_check_api_should_return_status_ok() {
 async fn subscription_api_should_return_status_ok_for_valid_form_data() {
     // Arrange
     let address = spawn_app();
+    let config = get_config().expect("Failed to get configurations");
+    let db_connection_string = config.database.connection_string();
+    let mut db_connection = PgConnection::connect(&db_connection_string)
+        .await
+        .expect("Failed to connect to database.");
     let client = reqwest::Client::new();
 
     // Act
@@ -36,7 +42,15 @@ async fn subscription_api_should_return_status_ok_for_valid_form_data() {
         .await
         .expect("Failed to execute request.");
 
-    assert_eq!(StatusCode::OK, response.status().as_u16())
+    assert_eq!(StatusCode::OK, response.status().as_u16());
+
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions")
+        .fetch_one(&mut db_connection)
+        .await
+        .expect("Failed to fetch saved subscription.");
+
+    assert_eq!(saved.email, "jhondoe@email.com");
+    assert_eq!(saved.name, "jhon doe");
 }
 
 #[tokio::test]
